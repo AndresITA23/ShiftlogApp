@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Button,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from "expo-location";
@@ -16,6 +17,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const [placeName, setPlaceName] = useState("Cargando...");
   const [currentTime, setCurrentTime] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const [location, setLocation] = useState({
     latitude: 0.001,
@@ -31,6 +33,7 @@ export default function LoginScreen() {
       const { status } = await Location.requestForegroundPermissionsAsync();
 
       if (status !== "granted") {
+        setLoading(true);
         Alert.alert("Permiso denegado", "Necesitas dar permiso para acceder a tu ubicación");
         return;
       }
@@ -66,6 +69,7 @@ export default function LoginScreen() {
           setLocation(updatedCoords);
         }
       );
+      setLoading(false);
     })();
 
     const interval = setInterval(() => {
@@ -91,37 +95,52 @@ export default function LoginScreen() {
         <Text style={styles.exactHour}>{currentTime}</Text>
       </View>
 
-      {/* Map Placeholder */}
-      <MapView
-        region={location}
-        showsUserLocation={true}
-        style={styles.mapPlaceholder}
-      >
-        <Marker coordinate={location} />
-      </MapView>
-
-      {/* Welcome Card */}
-      <View style={styles.welcomeCard}>
-        <TouchableOpacity 
-          style={styles.toggleButton} 
-          onPress={() => 
-            Alert.alert("Iniciar turno", "¿Estás seguro de que quieres iniciar tu turno?", [
-              {
-                text: "Cancelar",
-                style: "cancel",
-              },
-              {
-                text: "Iniciar turno",
-                onPress: () => console.log(location),
-                style: "default",
-              },
-            ])
-            
-          }
+      {/* Map and Welcome Card */}
+      <View style={styles.content}>
+        {/* Map Placeholder */}
+        <MapView
+          region={location}
+          showsUserLocation={true}
+          style={styles.mapPlaceholder}
         >
-          <Text style={styles.buttonText}>Iniciar turno</Text>
-        </TouchableOpacity>
-        <Text style={styles.welcomeText}>Bienvenido, [Nombre del usuario]</Text>
+          <Marker coordinate={location} />
+        </MapView>
+
+        {/* Welcome Card */}
+        <View style={styles.welcomeCard}>
+          {loading ? <Text>Ubicacion denegada</Text> : null}
+
+          {loading ? (
+            <ActivityIndicator size="large" color="#0000ff" />
+          ) : (
+            <TouchableOpacity
+              style={styles.toggleButton}
+              onPress={() =>
+                Alert.alert(
+                  "Iniciar turno",
+                  "¿Estás seguro de que quieres iniciar tu turno?",
+                  [
+                    {
+                      text: "Cancelar",
+                      style: "cancel",
+                    },
+                    {
+                      text: "Iniciar turno",
+                      onPress: () => console.log(location),
+                      style: "default",
+                    },
+                  ]
+                )
+              }
+            >
+              <Text style={styles.buttonText}>Iniciar turno</Text>
+            </TouchableOpacity>
+          )}
+
+          <Text style={styles.welcomeText}>
+            Bienvenido, [Nombre del usuario]
+          </Text>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -162,26 +181,29 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontSize: 16,
   },
-  mapPlaceholder: {
-    height: 250,
-    backgroundColor: '#e5e7eb',
+  content: {
+    flex: 1,
     marginHorizontal: 16,
-    borderRadius: 8,
     marginTop: 16,
+    justifyContent: 'space-between',
+  },
+  mapPlaceholder: {
+    flex: 1,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 8,
+    marginBottom: 10,
   },
   welcomeCard: {
+    flex: 1,
     backgroundColor: 'white',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
-    marginHorizontal: 16,
-    marginTop: 15,
     borderRadius: 8,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
-    height: 300,
   },
   toggleButton: {
     backgroundColor: '#06b6d4',
@@ -201,5 +223,6 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     fontSize: 18,
     fontWeight: '600',
+    marginVertical: 20,
   },
 });
