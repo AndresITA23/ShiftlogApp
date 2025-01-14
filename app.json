@@ -23,7 +23,7 @@
       "package": "com.andresp23.Shiftlog",
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyAUzQhQ6kmg3PgoFTVeaRX3xohMrkAmT8w"
+          "apiKey": ""
         }
       }
     },
