@@ -20,7 +20,12 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "package": "com.andresp23.Shiftlog"
+      "package": "com.andresp23.Shiftlog",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyAUzQhQ6kmg3PgoFTVeaRX3xohMrkAmT8w"
+        }
+      }
     },
     "web": {
       "bundler": "metro",

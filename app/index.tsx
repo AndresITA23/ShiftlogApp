@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import {
   View,
@@ -6,135 +6,215 @@ import {
   SafeAreaView,
   TouchableOpacity,
   StyleSheet,
-  Button,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from "expo-location";
 
-export default function LoginScreen() {
-  const router = useRouter();
+// Types for better type safety
+interface LocationState {
+  latitude: number;
+  longitude: number;
+  latitudeDelta: number;
+  longitudeDelta: number;
+}
+
+// Custom hook for location handling
+const useLocation = () => {
+  const [location, setLocation] = useState<LocationState | null>(null);
   const [placeName, setPlaceName] = useState("Cargando...");
-  const [currentTime, setCurrentTime] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [location, setLocation] = useState({
-    latitude: 0.001,
-    longitude: 0.001,
-    latitudeDelta: 0.001,
-    longitudeDelta: 0.001,
-  });
-
-  useEffect(() => {
-    let subscription;
-
-    (async () => {
+  const checkLocationPermissions = async () => {
+    try {
       const { status } = await Location.requestForegroundPermissionsAsync();
 
       if (status !== "granted") {
-        setLoading(true);
-        Alert.alert("Permiso denegado", "Necesitas dar permiso para acceder a tu ubicación");
-        return;
+        setError("Necesitas dar permiso para acceder a tu ubicación precisa");
+        setLoading(false);
+        return false;
       }
 
-      const locationTemp = await Location.getCurrentPositionAsync({});
-      const coords = {
-        latitude: locationTemp.coords.latitude,
-        longitude: locationTemp.coords.longitude,
-      };
-
-      setLocation({
-        ...coords,
-        latitudeDelta: 0.001,
-        longitudeDelta: 0.001,
+      const locationTemp = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
       });
 
-      // Get place name
-      const [reverseGeocoded] = await Location.reverseGeocodeAsync(coords);
+      if (locationTemp.coords.accuracy > 100) {
+        setError("Necesitas activar la ubicación precisa");
+        setLoading(false);
+        return false;
+      }
+
+      const coords: LocationState = {
+        latitude: locationTemp.coords.latitude,
+        longitude: locationTemp.coords.longitude,
+        latitudeDelta: 0.001,
+        longitudeDelta: 0.001,
+      };
+
+      setLocation(coords);
+
+      // Reverse geocoding
+      const [reverseGeocoded] = await Location.reverseGeocodeAsync({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      });
+
       setPlaceName(
         `${reverseGeocoded.street || "Ubicación desconocida"}, ${reverseGeocoded.city || ""}`
       );
 
-      // Changes in location in real time
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error getting location");
+      setLoading(false);
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    let subscription: Location.LocationSubscription | null = null;
+
+    const initializeLocation = async () => {
+      const hasPermissions = await checkLocationPermissions();
+      if (!hasPermissions) return;
+
+      // Watch position
       subscription = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 1 },
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 1000,
+          distanceInterval: 1,
+        },
         (updatedLocation) => {
-          const updatedCoords = {
+          if (updatedLocation.coords.accuracy > 100) {
+            setError("Necesitas activar la ubicación precisa");
+            setLoading(false);
+            return;
+          }
+
+          setLocation({
             latitude: updatedLocation.coords.latitude,
             longitude: updatedLocation.coords.longitude,
             latitudeDelta: 0.005,
             longitudeDelta: 0.005,
-          };
-          setLocation(updatedCoords);
+          });
         }
       );
-      setLoading(false);
-    })();
 
-    const interval = setInterval(() => {
-      const now = new Date();
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      setCurrentTime(`${hours}:${minutes}`);
-    }, 1000);
+      setLoading(false);
+    };
+
+    initializeLocation();
 
     return () => {
-      if (subscription) subscription.remove();
+      if (subscription) {
+        subscription.remove();
+      }
     };
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const hasPermissions = await checkLocationPermissions();
+      if (hasPermissions) {
+        setError(null);
+        setLoading(false);
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return { location, placeName, error, loading };
+};
+
+export default function LoginScreen() {
+  const router = useRouter();
+  const [currentTime, setCurrentTime] = useState('');
+  const { location, placeName, error, loading } = useLocation();
+
+  // Memoize the time update function
+  const updateTime = useCallback(() => {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    setCurrentTime(`${hours}:${minutes}`);
+  }, []);
+
+  useEffect(() => {
+    updateTime(); // Initial time set
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, [updateTime]);
+
+  // Memoize the alert handler
+  const handleStartShift = useCallback(() => {
+    Alert.alert(
+      "Iniciar turno",
+      "¿Estás seguro de que quieres iniciar tu turno?",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Iniciar turno",
+          onPress: () => console.log(location),
+          style: "default",
+        },
+      ]
+    );
+  }, [location]);
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Location Info */}
       <View style={styles.locationCard}>
         <View style={styles.locationInfo}>
           <Text style={styles.locationIcon}>📍</Text>
-          <Text style={styles.locationName}>{placeName}</Text>
+          <Text style={styles.locationName} numberOfLines={1} ellipsizeMode="tail">{placeName}</Text>
         </View>
         <Text style={styles.exactHour}>{currentTime}</Text>
       </View>
 
-      {/* Map and Welcome Card */}
       <View style={styles.content}>
-        {/* Map Placeholder */}
         <MapView
-          region={location}
+          region={location || undefined}
           showsUserLocation={true}
           style={styles.mapPlaceholder}
         >
-          <Marker coordinate={location} />
+          {location && <Marker coordinate={location} />}
         </MapView>
 
-        {/* Welcome Card */}
         <View style={styles.welcomeCard}>
-          {loading ? <Text>Ubicacion denegada</Text> : null}
-
           {loading ? (
-            <ActivityIndicator size="large" color="#0000ff" />
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#0000ff" />
+              <Text style={styles.loadingText}>Obteniendo ubicación...</Text>
+            </View>
           ) : (
-            <TouchableOpacity
-              style={styles.toggleButton}
-              onPress={() =>
-                Alert.alert(
-                  "Iniciar turno",
-                  "¿Estás seguro de que quieres iniciar tu turno?",
-                  [
-                    {
-                      text: "Cancelar",
-                      style: "cancel",
-                    },
-                    {
-                      text: "Iniciar turno",
-                      onPress: () => console.log(location),
-                      style: "default",
-                    },
-                  ]
-                )
-              }
-            >
-              <Text style={styles.buttonText}>Iniciar turno</Text>
-            </TouchableOpacity>
+            location && (
+              <TouchableOpacity
+                style={styles.toggleButton}
+                onPress={handleStartShift}
+                accessibilityLabel="Iniciar turno"
+                accessibilityHint="Presiona para comenzar tu turno"
+              >
+                <Text style={styles.buttonText}>Iniciar turno</Text>
+              </TouchableOpacity>
+            )
           )}
 
           <Text style={styles.welcomeText}>
@@ -168,6 +248,7 @@ const styles = StyleSheet.create({
   locationInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   locationIcon: {
     fontSize: 20,
@@ -176,10 +257,12 @@ const styles = StyleSheet.create({
   locationName: {
     color: '#4b5563',
     fontSize: 14,
+    flexShrink: 1,
   },
   exactHour: {
     color: '#374151',
     fontSize: 16,
+    marginLeft: 8,
   },
   content: {
     flex: 1,
@@ -224,5 +307,26 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginVertical: 20,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+    fontSize: 14,
   },
 });
