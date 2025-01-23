@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useRouter } from 'expo-router';
+import React from 'react';
+import { router } from 'expo-router';
 import {
   View,
   Text,
@@ -13,18 +13,42 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-export default function LoginScreen() {
-  const router = useRouter();
-  const [username, setUsername] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
+import { useFormik } from 'formik';
+import * as Yup from 'yup';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useState } from 'react';
+import { useSession } from '../ctx';
 
-  const handleLogin = (): void => {
-    if (username && password) {
-      router.replace('/');
-    } else {
-      Alert.alert('Error', 'Por favor, ingresa tus credenciales.');
-    }
-  };
+const LoginScreen = () => {
+  
+   const { signIn } = useSession();
+
+  // Configuración de useFormik
+  const formik = useFormik({
+    initialValues: {
+      payroll_number: '',
+      password: '',
+    },
+    validationSchema: Yup.object({
+      payroll_number: Yup.string()
+        .required('El número de nómina es obligatorio.')
+        .matches(/^\d{4,4}$/, 'El número de nómina debe de ser de 4 digitos.'),
+      password: Yup.string()
+        .required('La contraseña es obligatoria.')
+        .min(6, 'La contraseña debe tener al menos 6 caracteres.'),
+    }),
+    onSubmit: async (values) => {
+        try {
+          await signIn( values);
+          // Navigate after signing in. Ensure sign-in is successful before navigating.
+          router.replace('/');
+        } catch (error) {
+          console.error('Failed to sign in:', error)
+          Alert.alert('Error', 'Hubo un problema al iniciar sesión. Por favor, verifica tus datos.');
+          // Handle sign-in error (e.g., show an error message to the user)
+        }
+    },
+  });
 
   return (
     <ImageBackground
@@ -39,56 +63,59 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
             <Image
-              source={require('../assets/images/react-logo.png')} // Cambia a loginLogo.svg si usas un paquete compatible con SVG.
+              source={require('../assets/images/loginLogo.png')}
               style={styles.logo}
             />
             <Text style={styles.title}>Iniciar Sesión</Text>
-            <Text style={styles.label}>Inicia sesión con tu número de nómina</Text>
             <View style={styles.inputContainer}>
               <TextInput
                 placeholder="No. Nómina"
                 style={styles.input}
-                value={username}
-                onChangeText={setUsername}
+                onChangeText={formik.handleChange('payroll_number')}
+                onBlur={formik.handleBlur('payroll_number')}
+                value={formik.values.payroll_number}
                 autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="default"
+                keyboardType="numeric"
               />
+              {formik.touched.payroll_number && formik.errors.payroll_number && (
+                <Text style={styles.errorText}>{formik.errors.payroll_number}</Text>
+              )}
             </View>
             <View style={styles.inputContainer}>
               <TextInput
                 placeholder="Contraseña"
                 secureTextEntry
                 style={styles.input}
-                value={password}
-                onChangeText={setPassword}
+                onChangeText={formik.handleChange('password')}
+                onBlur={formik.handleBlur('password')}
+                value={formik.values.password}
                 autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="default"
               />
+              {formik.touched.password && formik.errors.password && (
+                <Text style={styles.errorText}>{formik.errors.password}</Text>
+              )}
             </View>
-            <TouchableOpacity style={styles.button} onPress={handleLogin}>
+            <TouchableOpacity style={styles.button} onPress={formik.handleSubmit}>
               <Text style={styles.buttonText}>Iniciar sesión</Text>
             </TouchableOpacity>
-
             <TouchableOpacity>
-              <Text 
+              <Text
                 style={styles.forgotPassword}
-                onPress={() => 
+                onPress={() =>
                   Alert.alert(
-                    "Para recuperación de contraseña, favor de comunicarse con Recursos Humanos",
+                    'Para recuperación de contraseña, favor de comunicarse con Recursos Humanos'
                   )
                 }
-                >
-                ¿Olvidaste tu contraseña?</Text>
+              >
+                ¿Olvidaste tu contraseña?
+              </Text>
             </TouchableOpacity>
-            
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </ImageBackground>
   );
-}
+};
 
 const styles = StyleSheet.create({
   background: {
@@ -114,26 +141,18 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
     padding: 20,
-    width: '100%',
-    maxWidth: 400,
+    width: 300,
     alignItems: 'center',
   },
   logo: {
     width: 80,
     height: 80,
-    marginBottom: 20,
   },
   title: {
     fontSize: 22,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 10,
-  },
-  label: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
   },
   inputContainer: {
     width: '100%',
@@ -169,4 +188,11 @@ const styles = StyleSheet.create({
     color: '#007BFF',
     textAlign: 'center',
   },
+  errorText: {
+    color: 'red',
+    fontSize: 12,
+    marginTop: 5,
+  },
 });
+
+export default LoginScreen;

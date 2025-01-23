@@ -23,7 +23,7 @@
       "package": "com.andresp23.Shiftlog",
       "config": {
         "googleMaps": {
-          "apiKey": ""
+          "apiKey": "GOOGLE_MAPS_API_KEY"
         }
       }
     },
@@ -48,7 +48,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
