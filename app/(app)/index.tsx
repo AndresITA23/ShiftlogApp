@@ -13,6 +13,7 @@ import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSession } from '../../ctx';
 import NetInfo from "@react-native-community/netinfo";
+import { useShift } from '../context/ShiftContext';
 
 
 interface LocationState {
@@ -143,11 +144,12 @@ const useLocation = () => {
 };
 
 export default function LoginScreen() {
-  const { session, user, signOut } = useSession();
-  const { location, placeName, error, loading } = useLocation();
-  const [isShiftActive, setIsShiftActive] = useState(false);
+  const { user } = useSession();
+  const { location, error, loading } = useLocation();
   const [syncing, setSyncing] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+
+  const { isShiftActive, setShiftState, toggleShift } = useShift();
 
   useEffect(() => {
     // Monitorear el estado de la conexión
@@ -164,7 +166,7 @@ export default function LoginScreen() {
   useEffect(() => {
     const loadShiftState = async () => {
       const storedShift = await AsyncStorage.getItem("activeShift");
-      setIsShiftActive(!!storedShift);
+      setShiftState(!!storedShift);
     };
     loadShiftState();
   }, []);
@@ -218,8 +220,7 @@ export default function LoginScreen() {
       } else {
         await AsyncStorage.setItem("activeShift", JSON.stringify(shiftData));
       }
-
-      setIsShiftActive(!isShiftActive);
+      setShiftState(!isShiftActive);
     } catch (error) {
       Alert.alert("Error", "No se pudo actualizar el turno. Inténtalo nuevamente.");
     }
@@ -270,7 +271,7 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
- 
+
       <View style={styles.content}>
         <MapView region={location || undefined} showsUserLocation={true} style={styles.mapPlaceholder}>
           {location && <Marker coordinate={location} />}
@@ -285,7 +286,7 @@ export default function LoginScreen() {
           ) : (
             location && (
               <TouchableOpacity
-                style={styles.toggleButton}
+                style={isShiftActive ? styles.toggleButtonEnd : styles.toggleButtonStart}
                 onPress={() => {
                   Alert.alert(
                     isShiftActive ? "Finalizar turno" : "Iniciar turno",
@@ -318,48 +319,6 @@ export default function LoginScreen() {
             Bienvenido, {user?.first_name || "Usuario"}!
           </Text>
           
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={() => {
-              if (isShiftActive) {
-                Alert.alert(
-                  "No puedes cerrar sesión",
-                  "Por favor termina el turno antes de cerrar sesión.",
-                  [
-                    {
-                      text: "OK",
-                      style: "default"
-                    }
-                  ]
-                );
-                return;
-              }
-
-              Alert.alert(
-                "Cerrar sesión",
-                "Estás seguro que quieres cerrar sesión?",
-                [
-                  {
-                    text: "Cancelar",
-                    style: "cancel"
-                  },
-                  {
-                    text: "Si",
-                    style: "destructive",
-                    onPress: () => {signOut();},
-                  }
-                ]
-              );
-            }}
-          >
-            <Text style={[
-              styles.logoutButtonText,
-              isShiftActive && styles.logoutButtonTextDisabled
-            ]}>
-              Cerrar sesión
-            </Text>
-          </TouchableOpacity>
-
         </View>
       </View>
     </SafeAreaView>
@@ -370,39 +329,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f3f4f6',
-  },
-  locationCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 12,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  locationInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  locationIcon: {
-    fontSize: 20,
-    marginRight: 8,
-  },
-  locationName: {
-    color: '#4b5563',
-    fontSize: 14,
-    flexShrink: 1,
-  },
-  exactHour: {
-    color: '#374151',
-    fontSize: 16,
-    marginLeft: 8,
   },
   content: {
     flex: 1,
@@ -428,8 +354,17 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  toggleButton: {
+  toggleButtonStart: {
     backgroundColor: '#06b6d4',
+    width: 180,
+    height: 180,
+    borderRadius: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  toggleButtonEnd: {
+    backgroundColor: '#ef4444',
     width: 180,
     height: 180,
     borderRadius: 100,
@@ -469,19 +404,4 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 14,
   },
-  logoutButton: {
-    backgroundColor: '#ff3b30',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    opacity: 1,
-  },
-  logoutButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  logoutButtonTextDisabled: {
-    opacity: 0.5,
-  }
 });

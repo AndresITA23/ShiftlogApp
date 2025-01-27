@@ -18,7 +18,7 @@ const AuthContext = createContext<{
   signIn: (credentials: { payroll_number: string; password: string }) => Promise<void>;
   signOut: () => void;
   session?: string | null;
-  user?: { id: string; first_name: string } | null; // Información del usuario extraída del JWT
+  user?: { id: string; first_name: string, is_admin: boolean } | null; // Información del usuario extraída del JWT
   isLoading: boolean;
 }>({
   signIn: async () => null,
@@ -40,13 +40,13 @@ export function useSession() {
 
 export function SessionProvider({ children }: PropsWithChildren) {
   const [[isLoading, session], setSession] = useStorageState('session');
-  const [user, setUser] = useState<{ id: string; first_name: string } | null>(null);
+  const [user, setUser] = useState<{ id: string; first_name: string, is_admin: boolean } | null>(null);
 
   useEffect(() => {
     if (session) {
       const decodedToken = decodeJWT(session);
       if (decodedToken) {
-        setUser({ id: decodedToken.id, first_name: decodedToken.first_name });
+        setUser({ id: decodedToken.id, first_name: decodedToken.first_name, is_admin: decodedToken.is_admin });
       }
     } else {
       setUser(null);
